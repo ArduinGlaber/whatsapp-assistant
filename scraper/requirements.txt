@@ -1,0 +1,6 @@
+selenium
+python-dotenv
+pytesseract
+beautifulsoup4
+requests
+Pillow

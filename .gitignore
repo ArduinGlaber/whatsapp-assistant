@@ -1,0 +1,26 @@
+# Environment variables (SECRETS)
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
