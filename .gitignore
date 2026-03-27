@@ -17,6 +17,9 @@ venv/
 *.out
 vendor/
 
+# Bot binary
+bot/telegram-marketplace-bot
+
 # IDE
 .vscode/
 .idea/
