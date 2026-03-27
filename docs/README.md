@@ -1,6 +1,6 @@
-# WhatsApp Assistant - Documentación
+# Telegram Marketplace Bot - Documentación
 
-Asistente de WhatsApp con scraping de Facebook para marketplace.
+Asistente de Telegram con scraping de Facebook para marketplace en Cuba.
 
 ## Tabla de Contenidos
 
@@ -13,19 +13,29 @@ Asistente de WhatsApp con scraping de Facebook para marketplace.
 7. [Base de Datos](#base-de-datos)
 8. [Parser de Listings](#parser-de-listings)
 9. [Scraper de Facebook](#scraper-de-facebook)
-10. [Limitaciones](#limitaciones)
-11. [Futuro](#futuro)
+10. [Bot de Telegram](#bot-de-telegram)
+11. [Limitaciones](#limitaciones)
+12. [Futuro](#futuro)
 
 ---
 
 ## Descripción General
 
-Este proyecto automatiza la gestión de un marketplace en WhatsApp mediante:
+Este proyecto automatiza la gestión de un marketplace en Telegram mediante:
 
 - **Scraping automático** de grupos de Facebook de compra/venta
 - **Extracción inteligente** de información de anuncios (artículo, precio, contacto)
-- **Bot de WhatsApp** que responde consultas sobre productos disponibles
+- **Bot de Telegram** que responde consultas sobre productos disponibles
 - **Base de datos local** para almacenamiento offline
+
+### Por qué Telegram?
+
+| Ventaja | Detalle |
+|---------|---------|
+| API oficial | Sin riesgo de ban |
+| Solo token | No necesita teléfono online |
+| Multi-device | Funciona en cualquier dispositivo |
+| Simple | Desarrollo rápido |
 
 ### Contexto
 
@@ -37,9 +47,9 @@ Diseñado para usuarios en Cuba con limitaciones de conectividad (6GB/mes). Toda
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    WhatsApp Assistant                         │
+│                    Telegram Marketplace Bot                      │
 ├──────────────────┬──────────────────┬───────────────────────┤
-│   Facebook       │    WhatsApp      │      SQLite           │
+│   Facebook       │    Telegram      │      SQLite           │
 │   Scraper       │      Bot         │      Database         │
 │   (Python)      │     (Go)         │      (Local)         │
 ├──────────────────┴──────────────────┴───────────────────────┤
@@ -51,7 +61,7 @@ Diseñado para usuarios en Cuba con limitaciones de conectividad (6GB/mes). Toda
 ### Flujo de datos
 
 ```
-Facebook → Scraper → Parser → SQLite DB ← Bot WhatsApp
+Facebook → Scraper → Parser → SQLite DB ← Bot Telegram
                                        ↓
                                    Usuario
 ```
@@ -61,26 +71,25 @@ Facebook → Scraper → Parser → SQLite DB ← Bot WhatsApp
 ## Estructura del Proyecto
 
 ```
-whatsapp-assistant/
-├── scraper/
-│   ├── main.py           # Entrada principal del scraper
+telegram-marketplace-bot/
+├── scraper/              # Scraper de Facebook (Python)
+│   ├── main.py           # Entrada principal
 │   ├── get_groups.py     # Obtener grupos de Facebook
-│   ├── facebook.py       # Login y scraping con Selenium
+│   ├── facebook.py       # Login y scraping
 │   ├── parser.py         # Extracción de listings
 │   ├── ocr.py           # OCR con Tesseract
 │   ├── storage.py        # Repositorio SQLite
-│   ├── test_parser.py    # Tests del parser
-│   ├── requirements.txt   # Dependencias Python
-│   └── data/             # Base de datos y cookies
-├── internal/             # Código Go (futuro)
-│   ├── whatsapp/         # Bot WhatsApp
-│   ├── ai/              # Cliente Ollama
+│   └── requirements.txt  # Dependencias
+├── bot/                  # Bot de Telegram (Go)
+│   ├── main.go
+│   └── handlers.go
+├── internal/            # Código compartido
 │   └── models/          # Entidades
 ├── migrations/           # Migraciones SQL
-├── .env                 # Credenciales (NO commitear)
+├── data/                 # Datos (DB, cookies)
+├── .env                  # Credenciales
 ├── .gitignore
-├── go.mod               # Módulo Go
-└── README.md            # Este archivo
+└── README.md
 ```
 
 ---
@@ -95,7 +104,7 @@ sudo apt update
 sudo apt install -y tesseract-ocr tesseract-ocr-spa
 ```
 
-### Python
+### Python (Scraper)
 
 ```bash
 cd scraper
@@ -104,91 +113,71 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Dependencias Python
+### Go (Bot)
 
-```
-selenium>=4.0
-undetected-chromedriver>=3.5
-python-dotenv>=1.0
-pytesseract>=0.3
-beautifulsoup4>=4.9
-requests>=2.28
-Pillow>=9.0
+```bash
+go mod init telegram-marketplace-bot
+go get github.com/go-telegram-bot-api/telegram-bot-api/v5
 ```
 
 ---
 
 ## Configuración
 
-### 1. Credenciales de Facebook
+### 1. Token de Telegram
 
-Crear archivo `.env` en la carpeta scraper:
+Obtener token de [@BotFather](https://t.me/botfather):
+
+1. Enviar `/newbot`
+2. Dar nombre al bot
+3. Obtener token tipo: `123456789:ABCdefGhIJKlmNoPQRsTUVwxYZ`
+
+Crear archivo `.env`:
 
 ```env
+TELEGRAM_BOT_TOKEN=tu-token-aqui
 FACEBOOK_EMAIL=tu@email.com
 FACEBOOK_PASSWORD=tu_password
 ```
 
-**Importante:** 
-- Agregar `.env` a `.gitignore`
-- Cambiar la contraseña después del MVP
-- Considerar usar autenticación de dos factores
+### 2. Credenciales de Facebook
 
-### 2. Base de Datos
-
-La base de datos SQLite se crea automáticamente en `data/listings.db`.
+Igual que arriba. El bot usa las mismas credenciales para scraping.
 
 ---
 
 ## Uso
 
-### 1. Obtener Grupos de Facebook
+### Scraper de Facebook
+
+#### 1. Obtener Grupos
 
 ```bash
 source venv/bin/activate
 python get_groups.py
 ```
 
-Este comando:
-- Inicia sesión en Facebook
-- Lista todos los grupos del usuario
-- Permite seleccionar cuáles guardar
-- Los guarda en la base de datos
-
-### 2. Scrapeear Grupos
+#### 2. Scrapeear Grupos
 
 ```bash
 # Un grupo específico
 python main.py --group-id 774703760229907
 
-# Grupos específicos (por ID de base de datos)
+# Grupos específicos
 python main.py --groups 1,3,7
 
-# Rango de grupos
-python main.py --groups 1-5
-
-# Todos los grupos activos
+# Todos los grupos
 python main.py --all-groups
 
-# Ver grupos disponibles
+# Ver grupos
 python main.py --list-groups
-
-# Mostrar navegador (para debugging)
-python main.py --group-id 774703760229907 --show-browser
 ```
 
-### 3. Parámetros
+### Bot de Telegram
 
-| Parámetro | Descripción | Default |
-|-----------|-------------|---------|
-| `--group-id` | ID del grupo de Facebook | - |
-| `--groups` | IDs separados por coma (1,3,5) | - |
-| `--all-groups` | Scrapear todos los grupos activos | False |
-| `--list-groups` | Mostrar grupos en DB | False |
-| `--max-posts` | Posts máximos por grupo | 50 |
-| `--headless` | Sin navegador visible | True |
-| `--show-browser` | Mostrar navegador | False |
-| `--db-path` | Ruta a la base de datos | data/listings.db |
+```bash
+go run bot/main.go
+```
 
 ---
 
@@ -213,7 +202,7 @@ CREATE TABLE listings (
     id INTEGER PRIMARY KEY,
     group_id INTEGER REFERENCES groups(id),
     post_id TEXT,
-    type TEXT CHECK(type IN ('V', 'C')),  -- Venta o Compra
+    type TEXT CHECK(type IN ('V', 'C')),
     article TEXT,
     price REAL,
     currency TEXT,
@@ -227,11 +216,12 @@ CREATE TABLE listings (
     scraped_at TEXT
 );
 
--- Conversaciones de WhatsApp
+-- Conversaciones de Telegram
 CREATE TABLE conversations (
     id INTEGER PRIMARY KEY,
-    contact_jid TEXT UNIQUE,
-    contact_name TEXT,
+    chat_id INTEGER UNIQUE,
+    username TEXT,
+    first_name TEXT,
     created_at TEXT,
     updated_at TEXT
 );
@@ -240,12 +230,12 @@ CREATE TABLE conversations (
 CREATE TABLE messages (
     id INTEGER PRIMARY KEY,
     conversation_id INTEGER REFERENCES conversations(id),
-    sender TEXT CHECK(sender IN ('U', 'B')),  -- User o Bot
+    sender TEXT CHECK(sender IN ('U', 'B')),
     content TEXT,
     created_at TEXT
 );
 
--- Log de operaciones de scraping
+-- Log de scraping
 CREATE TABLE scraping_logs (
     id INTEGER PRIMARY KEY,
     group_id INTEGER REFERENCES groups(id),
@@ -258,22 +248,11 @@ CREATE TABLE scraping_logs (
 );
 ```
 
-### Índices
-
-```sql
-CREATE INDEX idx_listings_article ON listings(article COLLATE NOCASE);
-CREATE INDEX idx_listings_type ON listings(type);
-CREATE INDEX idx_listings_available ON listings(is_available);
-CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
-```
-
 ---
 
 ## Parser de Listings
 
 ### Detección de Tipo
-
-El parser determina si un post es **Venta** o **Compra**:
 
 | Patrón | Tipo |
 |--------|------|
@@ -281,92 +260,60 @@ El parser determina si un post es **Venta** o **Compra**:
 | "Tengo X, interesados al privado" | V |
 | "Compro X" | C |
 | "Busco X" | C |
-| Solo nombre: "iPhone 15" | V (asume venta) |
+| Solo nombre: "iPhone 15" | V |
 
 ### Extracción de Datos
 
-| Campo | Ejemplo | Notas |
-|-------|---------|-------|
-| `type` | 'V' o 'C' | Venta o Compra |
-| `article` | "iPhone 15 Pro Max 256GB" | Limpiado de keywords |
-| `price` | 150.0 | Float o null |
-| `currency` | "CUC" | CUC, USD, CUP, EUR |
-| `contact_phone` | "+5351234567" | Con código de país |
-| `contact_fb_username` | "vendedor123" | Del autor |
-| `posted_at` | "2026-03-24T10:30:00" | ISO format |
-
-### Casos Especiales
-
-#### Precio en privado
-
-```
-"Tengo PS5, consultar precio al privado"
-→ price = null, currency = null
-```
-
-#### Solo nombre de producto
-
-```
-"iPhone 15 Pro"
-→ type = 'V', price = null
-```
-
-### Patrones Detectados
-
-**Venta:**
-- vendo, venta
-- tengo X, interesados al privado
-- ofrezco
-
-**Compra:**
-- compro, compramos
-- busco, necesito
-- busco X, privado
+| Campo | Ejemplo |
+|-------|---------|
+| `type` | 'V' o 'C' |
+| `article` | "iPhone 15 Pro Max" |
+| `price` | 150.0 o null |
+| `currency` | "CUC", "USD" |
+| `contact_phone` | "+5351234567" |
+| `contact_fb_username` | "vendedor123" |
+| `posted_at` | "2026-03-24T10:30:00" |
 
 ---
 
-## Scraper de Facebook
+## Bot de Telegram
 
-### Login
+### Comandos
 
-1. Intenta cargar sesión guardada (`data/facebook_cookies.json`)
-2. Si falla, hace login con credenciales
-3. Guarda cookies para siguientes ejecuciones
+| Comando | Descripción |
+|---------|-------------|
+| `/start` | Iniciar conversación |
+| `/help` | Mostrar ayuda |
+| `/busco <articulo>` | Buscar ventas |
+| `/vendo <articulo>` | Buscar compras |
+| `/grupos` | Ver grupos configurados |
 
-### Extracción de Posts
+### Ejemplo de Uso
 
-1. Navega al grupo
-2. Hace scroll para cargar más posts
-3. Extrae para cada post:
-   - Autor
-   - Texto del post
-   - URL de imágenes
-   - Timestamp
+```
+Usuario: /busco iphone
+Bot: 
+📱 iPhone 13 Pro Max - 150 CUC
+📞 +53 5XXXXXXXX - @vendedor123
+Publicado: hace 2 horas
 
-### Rate Limiting
-
-- Pausas de 2 segundos entre scrolls
-- Máximo 20 scrolls por grupo
-- Sesión guardada para reutilizar
+📱 iPhone 12 - 100 CUC  
+📞 +53 5XXXXXXXX - @otrovendedor
+Publicado: hace 5 horas
+```
 
 ---
 
 ## Limitaciones
 
-### Actuales
+### Facebook
+- ToS: Scraper viola términos de Facebook
+- Detección: Facebook puede bloquear sesiones
+- 2FA: No soportado
 
-| Limitación | Descripción |
-|------------|-------------|
-| Facebook ToS | Scraper viola términos de servicio |
-| Detección | Facebook puede detectar y bloquear |
-| 2FA | No maneja autenticación de dos factores |
-| Imágenes | Solo OCR, no descarga imágenes |
-
-### Contexto Cuba
-
+### Contextura Cuba
 - Datos limitados (6GB/mes)
-- Scraper debe ejecutarse con WiFi disponible
-- Todo corre localmente
+- Scraper debe ejecutarse con WiFi
 
 ---
 
@@ -380,11 +327,9 @@ El parser determina si un post es **Venta** o **Compra**:
 - [x] Gestión de múltiples grupos
 - [x] Detección de "precio privado"
 
-### Fase 2 (Pendiente)
-- [ ] Bot de WhatsApp (Go + whasmeow)
+### Fase 2 (En progreso)
+- [ ] Bot de Telegram (Go)
 - [ ] Integración con Ollama
-- [ ] Búsqueda por similitud
-- [ ] Historial de conversaciones
 
 ### Fase 3 (Ideas)
 - [ ] Migración a Termux/Android
@@ -394,35 +339,6 @@ El parser determina si un post es **Venta** o **Compra**:
 
 ---
 
-## Troubleshooting
-
-### Error: "Login failed"
-
-1. Verificar credenciales en `.env`
-2. Si hay 2FA, desactivarlo temporalmente
-3. Verificar que Facebook permita el acceso
-
-### Error: "No groups found"
-
-1. Asegurarse de estar logueado
-2. Verificar cookies en `data/facebook_cookies.json`
-3. Eliminar cookies y hacer login de nuevo
-
-### Error: "Tesseract not found"
-
-```bash
-sudo apt install tesseract-ocr tesseract-ocr-spa
-```
-
----
-
 ## Licencia
 
 Privado - Solo para uso personal.
-
----
-
-## Autores
-
-- Proyecto para uso personal en Cuba
-- Contexto: asistente de marketplace vía WhatsApp

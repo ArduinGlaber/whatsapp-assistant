@@ -1,95 +1,64 @@
-# WhatsApp Assistant
+# Telegram Marketplace Bot
 
-Asistente de WhatsApp con scraping de Facebook para marketplace.
+Bot de Telegram con scraping de Facebook para marketplace en Cuba.
 
-## Estructura del Proyecto
+## Características
+
+- 🤖 **Scraper automático** de grupos de Facebook
+- 💬 **Bot de Telegram** que responde consultas
+- 📦 **Base de datos local** SQLite
+- 🔒 **Sin riesgo de ban** (API oficial de Telegram)
+- 📱 **Funciona offline** (ideal para Cuba)
+
+## Estructura
 
 ```
-whatsapp-assistant/
-├── cmd/
-│   └── bot/              # Bot WhatsApp (Go)
-├── scraper/               # Scraper de Facebook (Python)
-│   ├── main.py
-│   ├── facebook.py
-│   ├── parser.py
-│   ├── ocr.py
-│   ├── storage.py
-│   └── requirements.txt
-├── internal/
-│   ├── whatsapp/
-│   ├── ai/
-│   ├── storage/
-│   └── models/
-├── migrations/
-├── data/                  # Datos (DB, cookies)
-├── .env                   # Credenciales (NO committing)
-├── .gitignore
-└── go.mod
+telegram-marketplace-bot/
+├── scraper/              # Scraper de Facebook (Python)
+├── bot/                  # Bot de Telegram (Go)
+├── docs/                 # Documentación
+└── data/                 # Base de datos
 ```
 
-## Setup
+## Setup Rápido
 
-### 1. Dependencias del Sistema
-
-```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install tesseract-ocr tesseract-ocr-spa
-
-# Install Playwright browsers
-playwright install chromium
-```
-
-### 2. Python Environment
+### 1. Scraper
 
 ```bash
 cd scraper
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
+source venv/bin/activate
 pip install -r requirements.txt
+python get_groups.py  # Obtener grupos
+python main.py --all-groups  # Scrapear
 ```
 
-### 3. Credenciales
-
-El scraper usa credenciales de Facebook desde `.env`:
-
-```
-FACEBOOK_EMAIL=tu@email.com
-FACEBOOK_PASSWORD=tu_password
-```
-
-## Uso del Scraper
-
-### Primera ejecución
+### 2. Bot
 
 ```bash
-cd scraper
-source venv/bin/activate
-python -m scraper.main --group-id 774703760229907 --max-posts 50
+go mod init bot
+go get github.com/go-telegram-bot-api/telegram-bot-api/v5
+go run bot/main.go
 ```
 
-### Flags disponibles
+## Uso
 
-| Flag | Descripción | Default |
-|------|-------------|---------|
-| `--group-id` | ID del grupo de Facebook | 774703760229907 |
-| `--max-posts` | Número máximo de posts | 50 |
-| `--headless` | Ejecutar navegador sin UI | true |
+```
+/start - Iniciar
+/busco iphone - Buscar ventas
+/vendo iphone - Buscar compras
+```
 
-## Base de Datos
+## Documentación
 
-La base de datos SQLite se crea automáticamente en `data/listings.db`.
+Ver [docs/README.md](docs/README.md)
 
-### Tablas principales:
+## Estado
 
-- `groups` - Grupos de Facebook configurados
-- `listings` - Anuncios extraídos
-- `conversations` - Conversaciones de WhatsApp
-- `messages` - Mensajes individuales
-- `scraping_logs` - Log de operaciones de scraping
+**Fase 1 completada:** Scraper de Facebook con parser, OCR y gestión de grupos.
 
-## Desarrollo Futuro
+**Fase 2 en progreso:** Bot de Telegram.
 
-- [ ] Bot WhatsApp (Go + whasmeow)
-- [ ] Integración con Ollama
-- [ ] Migración a Termux/Android
+---
+
+Hecho para Cuba 🇬🇺
