@@ -462,6 +462,28 @@ class FacebookScraper:
         self.driver.get(group_url)
         time.sleep(5)
         
+        # Debug: log page title and URL
+        logger.info(f"Page URL: {self.driver.current_url}")
+        logger.info(f"Page title: {self.driver.title}")
+        
+        # Check if we got redirected or see any blockers
+        page_source = self.driver.page_source[:2000].lower()
+        
+        # Check for common blockers
+        if 'app' in page_source and ('download' in page_source or 'mejor en la app' in page_source):
+            logger.warning("⚠️ Facebook is asking to download the app")
+        if 'verify' in page_source or 'checkpoint' in page_source:
+            logger.warning("⚠️ Facebook is asking for verification")
+        if 'login' in self.driver.current_url:
+            logger.error("❌ Redirected to login page")
+            return posts
+        
+        # Save page source for debugging (first scroll only)
+        os.makedirs('data', exist_ok=True)
+        with open('data/debug_page_source.html', 'w', encoding='utf-8') as f:
+            f.write(self.driver.page_source)
+        logger.info("💾 Saved page source to debug_page_source.html")
+        
         # Scroll to load more posts
         scroll_attempts = 0
         max_scroll_attempts = 50
