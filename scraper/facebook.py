@@ -267,8 +267,8 @@ class FacebookScraper:
             current_url = self.driver.current_url
             logger.info(f"URL after login: {current_url}")
             
-            # Check for login failure
-            if 'login' in current_url or 'checkpoint' in current_url:
+            # Check for login failure or verification pages
+            if any(x in current_url for x in ['login', 'checkpoint', 'two_step_verification', 'authentication', 'confirm', 'verify']):
                 error_msg = None
                 try:
                     error_elem = self.driver.find_element(By.CSS_SELECTOR, 'div[class*="error"], #error, [role="alert"]')
@@ -279,12 +279,47 @@ class FacebookScraper:
                 if error_msg:
                     logger.error(f"❌ Login failed: {error_msg}")
                 else:
-                    logger.error("❌ Login failed - check credentials or 2FA")
+                    logger.error(f"❌ Login failed - Facebook requires verification (2FA, phone confirm, etc)")
+                    logger.error(f"   URL: {current_url}")
                 return False
-            else:
+            
+            # Verify we're actually logged in by checking for logged-in elements
+            try:
+                # Look for profile, home, or other logged-in indicators
+                logged_in_indicators = [
+                    'a[href*="/profile"]',
+                    'a[href*="/me"]',
+                    'div[data-sigil="profile-cover"]',
+                    'div[data-sigil="logged_in"]',
+                    'a[href*="logout"]',
+                    'a[title="Inicio"]',  # Home button (Spanish)
+                ]
+                
+                is_logged_in = False
+                for selector in logged_in_indicators:
+                    try:
+                        elem = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        if elem.is_displayed():
+                            is_logged_in = True
+                            logger.info(f"✅ Verified logged in (found: {selector})")
+                            break
+                    except NoSuchElementException:
+                        continue
+                
+                if not is_logged_in:
+                    # Try getting page source to see what's actually there
+                    page_text = self.driver.page_source[:500]
+                    logger.warning(f"⚠️ Could not verify login - page may not be logged in")
+                    logger.warning(f"   Page preview: {page_text[:200]}...")
+                    # Still try to continue - maybe we'll get lucky
+                
                 logger.info("✅ Login successful")
                 self._save_session_mobile()
                 return True
+                
+            except Exception as e:
+                logger.error(f"❌ Login verification error: {e}")
+                return False
                 
         except Exception as e:
             logger.error(f"❌ Login error: {e}")
