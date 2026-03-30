@@ -117,6 +117,33 @@ class FacebookScraper:
         except Exception as e:
             raise RuntimeError(f"Could not start Chrome: {e}")
         
+    def _dismiss_popups(self):
+        """Dismiss any popups that might block login (cookies, notifications, etc)."""
+        popup_selectors = [
+            ('button[data-testid="cookie-policy-dialog-accept-button"]', 'Accept cookies'),
+            ('button[title="Aceptar todo"]', 'Accept all'),
+            ('button[title="Accept All"]', 'Accept All'),
+            ('button[aria-label="Aceptar"]', 'Accept (es)'),
+            ('button[aria-label="Accept"]', 'Accept (en)'),
+            ('div[role="dialog"] button', 'Dialog button'),
+            ('div[data-pagelet*="CookieConsent"] button', 'Cookie consent'),
+            ('div[data-testid="cookie-policy-dialog"] button', 'Cookie policy'),
+            ('div[aria-modal="true"] button:first-child', 'Modal first button'),
+        ]
+        
+        for selector, name in popup_selectors:
+            try:
+                buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                for btn in buttons:
+                    if btn.is_displayed() and btn.is_enabled():
+                        btn.click()
+                        time.sleep(1)
+                        logger.info(f"✅ Dismissed: {name}")
+                        return True
+            except Exception:
+                pass
+        return False
+    
     def login(self) -> bool:
         """
         Login to Facebook using credentials from environment.
@@ -141,42 +168,93 @@ class FacebookScraper:
             
             # Otherwise, do fresh login
             logger.info("🔐 Performing fresh login...")
+            
+            # Go to main Facebook page first (sometimes better than login page)
+            self.driver.get(self.BASE_URL)
+            time.sleep(3)
+            
+            # Dismiss any popups
+            self._dismiss_popups()
+            
+            # Now navigate to login page
             self.driver.get(self.LOGIN_URL)
-            time.sleep(2)
+            time.sleep(3)
             
-            # Wait for page to load
-            wait = WebDriverWait(self.driver, 10)
+            # Dismiss popups again
+            self._dismiss_popups()
             
-            # Enter email
-            email_input = wait.until(
-                EC.presence_of_element_located((By.NAME, 'email'))
-            )
-            email_input.send_keys(email)
+            # Wait for page to fully load
+            wait = WebDriverWait(self.driver, 15)
+            
+            # Wait for email input to be clickable (not just present)
+            try:
+                email_input = wait.until(
+                    EC.element_to_be_clickable((By.NAME, 'email'))
+                )
+                email_input.click()
+                email_input.clear()
+                email_input.send_keys(email)
+                time.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"Email input issue: {e}, trying alternative selector")
+                # Try alternative selectors
+                alt_selectors = ['input[type="text"]', 'input[id="email"]', '#email']
+                for sel in alt_selectors:
+                    try:
+                        el = self.driver.find_element(By.CSS_SELECTOR, sel)
+                        if el.is_displayed():
+                            el.click()
+                            el.clear()
+                            el.send_keys(email)
+                            break
+                    except Exception:
+                        continue
+            
             time.sleep(0.5)
             
             # Enter password
-            password_input = self.driver.find_element(By.NAME, 'pass')
-            password_input.send_keys(password)
+            try:
+                password_input = wait.until(
+                    EC.element_to_be_clickable((By.NAME, 'pass'))
+                )
+                password_input.click()
+                password_input.clear()
+                password_input.send_keys(password)
+            except Exception:
+                alt_selectors = ['input[type="password"]', 'input[id="pass"]', '#pass']
+                for sel in alt_selectors:
+                    try:
+                        el = self.driver.find_element(By.CSS_SELECTOR, sel)
+                        if el.is_displayed():
+                            el.click()
+                            el.clear()
+                            el.send_keys(password)
+                            break
+                    except Exception:
+                        continue
+            
             time.sleep(0.5)
             
-            # Click login button - try multiple selectors (Facebook changes these frequently)
+            # Dismiss any popup that appeared after entering email
+            self._dismiss_popups()
+            
+            # Click login button - try multiple selectors
             login_selectors = [
-                (By.NAME, 'login'),
+                (By.CSS_SELECTOR, 'button[data-testid="royal_login_button"]'),
                 (By.CSS_SELECTOR, 'button[name="login"]'),
                 (By.CSS_SELECTOR, 'button[type="submit"]'),
-                (By.CSS_SELECTOR, 'button[data-testid="royal_login_button"]'),
                 (By.CSS_SELECTOR, 'input[type="submit"]'),
-                (By.XPATH, '//button[contains(., "Iniciar sesión") or contains(., "Log in") or contains(., "Entrar")]'),
-                (By.XPATH, '//button[@type="submit"]'),
+                (By.XPATH, '//button[contains(text(), "Iniciar sesi") or contains(text(), "Log in") or contains(text(), "Entrar")]'),
+                (By.XPATH, '//button[@type="submit" and not(@disabled)]'),
             ]
             
             login_button = None
             for selector_type, selector_value in login_selectors:
                 try:
-                    login_button = self.driver.find_element(selector_type, selector_value)
-                    if login_button:
-                        break
-                except NoSuchElementException:
+                    el = wait.until(EC.element_to_be_clickable((selector_type, selector_value)))
+                    login_button = el
+                    break
+                except Exception:
                     continue
             
             if not login_button:
@@ -189,6 +267,9 @@ class FacebookScraper:
                     logger.error("Could not find login form")
                     return False
             else:
+                # Scroll into view if needed
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+                time.sleep(0.3)
                 login_button.click()
             
             # Wait for navigation
