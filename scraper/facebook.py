@@ -47,6 +47,8 @@ class FacebookScraper:
     
     BASE_URL = "https://www.facebook.com"
     LOGIN_URL = "https://www.facebook.com/login"
+    MOBILE_BASE = "https://m.facebook.com"
+    MOBILE_LOGIN = "https://m.facebook.com/login.php"
     
     def __init__(self, headless: bool = True):
         """
@@ -147,6 +149,7 @@ class FacebookScraper:
     def login(self) -> bool:
         """
         Login to Facebook using credentials from environment.
+        Uses mobile version (m.facebook.com) which has less anti-bot protection.
         
         Returns:
             True if login successful, False otherwise
@@ -161,32 +164,20 @@ class FacebookScraper:
         try:
             self.start()
             
-            # Try to load existing session
-            if self._load_session():
-                logger.info("✅ Loaded existing session")
+            # Try to load existing session (mobile)
+            if self._load_session_mobile():
+                logger.info("✅ Loaded existing mobile session")
                 return True
             
-            # Otherwise, do fresh login
-            logger.info("🔐 Performing fresh login...")
-            
-            # Go to main Facebook page first (sometimes better than login page)
-            self.driver.get(self.BASE_URL)
+            # Use mobile version for login - simpler and less blocked
+            logger.info("🔐 Performing mobile login...")
+            self.driver.get(self.MOBILE_LOGIN)
             time.sleep(3)
             
-            # Dismiss any popups
-            self._dismiss_popups()
-            
-            # Now navigate to login page
-            self.driver.get(self.LOGIN_URL)
-            time.sleep(3)
-            
-            # Dismiss popups again
-            self._dismiss_popups()
-            
-            # Wait for page to fully load
+            # Wait for page
             wait = WebDriverWait(self.driver, 15)
             
-            # Wait for email input to be clickable (not just present)
+            # Mobile email input
             try:
                 email_input = wait.until(
                     EC.element_to_be_clickable((By.NAME, 'email'))
@@ -196,9 +187,14 @@ class FacebookScraper:
                 email_input.send_keys(email)
                 time.sleep(0.5)
             except Exception as e:
-                logger.warning(f"Email input issue: {e}, trying alternative selector")
-                # Try alternative selectors
-                alt_selectors = ['input[type="text"]', 'input[id="email"]', '#email']
+                logger.warning(f"Email input issue: {e}")
+                # Try alternative selectors for mobile
+                alt_selectors = [
+                    'input[name="email"]',
+                    'input[id="m_login_email"]',
+                    'input[type="text"]',
+                    'input[name="username"]',
+                ]
                 for sel in alt_selectors:
                     try:
                         el = self.driver.find_element(By.CSS_SELECTOR, sel)
@@ -210,18 +206,18 @@ class FacebookScraper:
                     except Exception:
                         continue
             
-            time.sleep(0.5)
-            
-            # Enter password
+            # Mobile password input
             try:
-                password_input = wait.until(
-                    EC.element_to_be_clickable((By.NAME, 'pass'))
-                )
+                password_input = self.driver.find_element(By.NAME, 'pass')
                 password_input.click()
                 password_input.clear()
                 password_input.send_keys(password)
             except Exception:
-                alt_selectors = ['input[type="password"]', 'input[id="pass"]', '#pass']
+                alt_selectors = [
+                    'input[name="pass"]',
+                    'input[id="m_login_password"]',
+                    'input[type="password"]',
+                ]
                 for sel in alt_selectors:
                     try:
                         el = self.driver.find_element(By.CSS_SELECTOR, sel)
@@ -235,17 +231,14 @@ class FacebookScraper:
             
             time.sleep(0.5)
             
-            # Dismiss any popup that appeared after entering email
-            self._dismiss_popups()
-            
-            # Click login button - try multiple selectors
+            # Mobile login button - simpler selectors
             login_selectors = [
-                (By.CSS_SELECTOR, 'button[data-testid="royal_login_button"]'),
+                (By.NAME, 'login'),
                 (By.CSS_SELECTOR, 'button[name="login"]'),
                 (By.CSS_SELECTOR, 'button[type="submit"]'),
                 (By.CSS_SELECTOR, 'input[type="submit"]'),
-                (By.XPATH, '//button[contains(text(), "Iniciar sesi") or contains(text(), "Log in") or contains(text(), "Entrar")]'),
-                (By.XPATH, '//button[@type="submit" and not(@disabled)]'),
+                (By.XPATH, '//button[contains(text(), "Iniciar sesi")]'),
+                (By.XPATH, '//input[@type="submit"]'),
             ]
             
             login_button = None
@@ -258,43 +251,30 @@ class FacebookScraper:
                     continue
             
             if not login_button:
-                # Last resort: submit the form
-                logger.warning("Login button not found, trying form submit")
+                # Try form submit
                 try:
-                    form = self.driver.find_element(By.CSS_SELECTOR, 'form[action*="login"]')
+                    form = self.driver.find_element(By.CSS_SELECTOR, 'form')
                     form.submit()
                 except NoSuchElementException:
                     logger.error("Could not find login form")
                     return False
             else:
-                # Scroll into view if needed
-                self.driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-                time.sleep(0.3)
                 login_button.click()
             
             # Wait for navigation
             time.sleep(5)
             
-            # Check current URL for login state
             current_url = self.driver.current_url
-            logger.info(f"URL after login attempt: {current_url}")
+            logger.info(f"URL after login: {current_url}")
             
-            # Check if we're still on login page or got redirected
-            if 'login' in current_url or 'checkpoint' in current_url or 'two-factor' in current_url:
-                # Check for error messages
-                error_selectors = [
-                    'div[role="alert"]',
-                    'div[data-testid="royal_login_error"]',
-                    'div[class*="error"]',
-                ]
+            # Check for login failure
+            if 'login' in current_url or 'checkpoint' in current_url:
                 error_msg = None
-                for selector in error_selectors:
-                    try:
-                        error_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
-                        error_msg = error_elem.text
-                        break
-                    except NoSuchElementException:
-                        continue
+                try:
+                    error_elem = self.driver.find_element(By.CSS_SELECTOR, 'div[class*="error"], #error, [role="alert"]')
+                    error_msg = error_elem.text
+                except Exception:
+                    pass
                 
                 if error_msg:
                     logger.error(f"❌ Login failed: {error_msg}")
@@ -303,12 +283,58 @@ class FacebookScraper:
                 return False
             else:
                 logger.info("✅ Login successful")
-                self._save_session()
+                self._save_session_mobile()
                 return True
                 
         except Exception as e:
             logger.error(f"❌ Login error: {e}")
             return False
+    
+    def _load_session_mobile(self) -> bool:
+        """Try to load a saved mobile session from cookies file."""
+        cookies_file = 'data/facebook_mobile_cookies.json'
+        
+        if not os.path.exists(cookies_file):
+            return False
+            
+        try:
+            self.driver.get(self.MOBILE_BASE)
+            time.sleep(2)
+            
+            with open(cookies_file, 'r') as f:
+                cookies = json.load(f)
+            
+            for cookie in cookies:
+                try:
+                    cookie.pop('sameSite', None)
+                    self.driver.add_cookie(cookie)
+                except Exception:
+                    pass
+            
+            self.driver.refresh()
+            time.sleep(3)
+            
+            # Mobile login check
+            if 'login' not in self.driver.current_url:
+                logger.info("✅ Mobile session loaded")
+                return True
+                
+        except Exception as e:
+            logger.debug(f"Mobile session load failed: {e}")
+            
+        return False
+    
+    def _save_session_mobile(self):
+        """Save mobile session cookies to file."""
+        os.makedirs('data', exist_ok=True)
+        
+        try:
+            cookies = self.driver.get_cookies()
+            with open('data/facebook_mobile_cookies.json', 'w') as f:
+                json.dump(cookies, f)
+            logger.info("✅ Mobile session saved")
+        except Exception as e:
+            logger.warning(f"Failed to save mobile session: {e}")
     
     def _load_session(self) -> bool:
         """
@@ -365,7 +391,7 @@ class FacebookScraper:
     
     def scrape_group(self, group_id: str, max_posts: int = 50) -> list[Post]:
         """
-        Scrape posts from a Facebook group.
+        Scrape posts from a Facebook group using mobile version.
         
         Args:
             group_id: The Facebook group ID
@@ -375,27 +401,29 @@ class FacebookScraper:
             List of Post objects
         """
         posts = []
-        group_url = f"{self.BASE_URL}/groups/{group_id}"
+        # Use mobile version for scraping - simpler HTML structure
+        group_url = f"{self.MOBILE_BASE}/groups/{group_id}"
         
         logger.info(f"Navigating to {group_url}")
         self.driver.get(group_url)
-        time.sleep(5)  # Extra wait for page load
+        time.sleep(5)
         
         # Scroll to load more posts
         scroll_attempts = 0
-        max_scroll_attempts = 50  # Increased for more posts
+        max_scroll_attempts = 50
         
         while len(posts) < max_posts and scroll_attempts < max_scroll_attempts:
-            # Scroll down
             self.driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
-            time.sleep(3)  # Extra wait for lazy loading
+            time.sleep(3)
             
-            # Find post elements (various selectors for different Facebook layouts)
+            # Mobile post selectors - simpler than desktop
             post_selectors = [
-                'div[role="article"]',
+                'div[data-sigil="feed-story"]',
+                'div[data-sigil*="story"]',
+                'article',
+                'div[id*="story"]',
+                'div[class*="userContentWrapper"]',
                 'div[data-pagelet*="FeedUnit"]',
-                'div[data-pagelet*="GroupFeedUnit"]',
-                'div[class*="x1n2onr6"]',
             ]
             
             post_elements = []
@@ -416,7 +444,7 @@ class FacebookScraper:
                     unique_elements.append(elem)
             
             for element in unique_elements:
-                post = self._extract_post(element)
+                post = self._extract_post_mobile(element)
                 if post and post not in posts:
                     posts.append(post)
                     
@@ -425,7 +453,6 @@ class FacebookScraper:
             
             logger.info(f"   Loaded {len(posts)}/{max_posts} posts...")
             
-            # Check if we reached the bottom
             old_height = self.driver.execute_script("return document.body.scrollHeight")
             time.sleep(1)
             new_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -436,6 +463,104 @@ class FacebookScraper:
                 scroll_attempts = 0
         
         return posts[:max_posts]
+    
+    def _extract_post_mobile(self, element) -> Optional[Post]:
+        """Extract data from a mobile post element."""
+        try:
+            # Get post content
+            content = ''
+            content_selectors = [
+                'p',
+                'div[data-sigil="story-message"]',
+                'div[data-sigil="feed-story-message"]',
+                'span[dir="auto"]',
+            ]
+            
+            for selector in content_selectors:
+                try:
+                    elems = element.find_elements(By.CSS_SELECTOR, selector)
+                    for el in elems:
+                        text = el.text.strip()
+                        if len(text) > 10:
+                            content = text
+                            break
+                except Exception:
+                    pass
+                if content:
+                    break
+            
+            # Get author
+            author = ''
+            author_selectors = [
+                'a[data-sigil*="author"]',
+                'strong a',
+                'h3 a',
+                'span[data-sigil="who"]',
+            ]
+            
+            for selector in author_selectors:
+                try:
+                    author_elem = element.find_element(By.CSS_SELECTOR, selector)
+                    author = author_elem.text.strip()
+                    if author:
+                        break
+                except NoSuchElementException:
+                    continue
+            
+            # Get image URL
+            image_url = None
+            image_selectors = [
+                'img[data-sigil*="image"]',
+                'img[src*="scontent"]',
+                'img[src*="fbcdn"]',
+            ]
+            
+            for selector in image_selectors:
+                try:
+                    img = element.find_element(By.CSS_SELECTOR, selector)
+                    image_url = img.get_attribute('src')
+                    if image_url and ('scontent' in image_url or 'fbcdn' in image_url):
+                        break
+                    else:
+                        image_url = None
+                except NoSuchElementException:
+                    continue
+            
+            # Get timestamp
+            timestamp = ''
+            time_selectors = [
+                'abbr',
+                'span[data-sigil="timestamp"]',
+                'span[title]',
+            ]
+            
+            for selector in time_selectors:
+                try:
+                    time_elem = element.find_element(By.CSS_SELECTOR, selector)
+                    timestamp = time_elem.text.strip() or time_elem.get_attribute('title') or ''
+                    if timestamp and len(timestamp) < 30:
+                        break
+                except NoSuchElementException:
+                    continue
+            
+            post_id = element.get_attribute('id') or str(hash(content[:50]))[:20]
+            
+            if not content and not image_url:
+                return None
+                
+            return Post(
+                post_id=post_id,
+                author=author or 'Unknown',
+                author_username=None,
+                content=content,
+                image_url=image_url,
+                timestamp=timestamp,
+                raw_html=element.get_attribute('innerHTML')[:500] if element else ''
+            )
+            
+        except Exception as e:
+            logger.debug(f"Mobile post extraction error: {e}")
+            return None
     
     def _extract_post(self, element) -> Optional[Post]:
         """
