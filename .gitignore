@@ -28,3 +28,5 @@ bot/telegram-marketplace-bot
 .DS_Store
 Thumbs.db
 *.log
+scraper/data/*.db
+scraper/data/*.sqlite*
