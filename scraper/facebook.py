@@ -248,16 +248,16 @@ class FacebookScraper:
         
         logger.info(f"Navigating to {group_url}")
         self.driver.get(group_url)
-        time.sleep(3)
+        time.sleep(5)  # Extra wait for page load
         
         # Scroll to load more posts
         scroll_attempts = 0
-        max_scroll_attempts = 20
+        max_scroll_attempts = 50  # Increased for more posts
         
         while len(posts) < max_posts and scroll_attempts < max_scroll_attempts:
             # Scroll down
             self.driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
-            time.sleep(2)  # Wait for lazy loading
+            time.sleep(3)  # Extra wait for lazy loading
             
             # Find post elements (various selectors for different Facebook layouts)
             post_selectors = [

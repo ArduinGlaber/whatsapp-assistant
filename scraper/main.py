@@ -49,8 +49,14 @@ def parse_args():
     parser.add_argument(
         '--max-posts',
         type=int,
-        default=50,
-        help='Maximum number of posts to scrape (default: 50)'
+        default=200,
+        help='Maximum number of posts to scrape (default: 200)'
+    )
+    parser.add_argument(
+        '--max-scrolls',
+        type=int,
+        default=30,
+        help='Maximum scroll attempts (default: 30)'
     )
     parser.add_argument(
         '--db-path',

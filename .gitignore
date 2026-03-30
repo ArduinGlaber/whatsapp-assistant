@@ -27,3 +27,4 @@ bot/telegram-marketplace-bot
 # OS
 .DS_Store
 Thumbs.db
+*.log
