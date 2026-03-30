@@ -269,18 +269,18 @@ class FacebookScraper:
             
             # Check for login failure or verification pages
             if any(x in current_url for x in ['login', 'checkpoint', 'two_step_verification', 'authentication', 'confirm', 'verify']):
-                error_msg = None
-                try:
-                    error_elem = self.driver.find_element(By.CSS_SELECTOR, 'div[class*="error"], #error, [role="alert"]')
-                    error_msg = error_elem.text
-                except Exception:
-                    pass
+                # Facebook requiere verificación - guardamos cookies para el usuario
+                logger.warning("⚠️ Facebook requiere verificación manual")
+                logger.warning(f"   URL: {current_url}")
                 
-                if error_msg:
-                    logger.error(f"❌ Login failed: {error_msg}")
-                else:
-                    logger.error(f"❌ Login failed - Facebook requires verification (2FA, phone confirm, etc)")
-                    logger.error(f"   URL: {current_url}")
+                # Guardar cookies aunque no esté verificada (el usuario las usará después)
+                self._save_session_mobile()
+                
+                # Escribir archivo de flag para que el workflow sepa que necesita verificación
+                self._mark_verification_needed(current_url)
+                
+                logger.warning("💾 Cookies guardadas para verificación manual")
+                logger.warning("📋 Sigue las instrucciones en el workflow para completar la verificación")
                 return False
             
             # Verify we're actually logged in by checking for logged-in elements
@@ -370,6 +370,25 @@ class FacebookScraper:
             logger.info("✅ Mobile session saved")
         except Exception as e:
             logger.warning(f"Failed to save mobile session: {e}")
+    
+    def _mark_verification_needed(self, url: str):
+        """Mark that manual verification is needed."""
+        try:
+            os.makedirs('data', exist_ok=True)
+            with open('data/VERIFICATION_NEEDED.txt', 'w') as f:
+                f.write(f"Facebook requiere verificación manual\n")
+                f.write(f"URL: {url}\n")
+                f.write(f"Fecha: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("\nPASOS:\n")
+                f.write("1. Descarga las cookies de: data/facebook_mobile_cookies.json\n")
+                f.write("2. En tu navegador, inicia sesión en m.facebook.com\n")
+                f.write("3. Completa cualquier verificación que Facebook pida\n")
+                f.write("4. Exporta las cookies usando EditThisCookie\n")
+                f.write("5. Reemplaza: scraper/data/facebook_mobile_cookies.json\n")
+                f.write("6. Sube cambios al repo y corre el workflow de nuevo\n")
+            logger.info("✅ Archivo VERIFICATION_NEEDED.txt creado")
+        except Exception as e:
+            logger.warning(f"Could not write verification flag: {e}")
     
     def _load_session(self) -> bool:
         """

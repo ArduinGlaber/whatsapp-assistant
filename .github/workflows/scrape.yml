@@ -8,6 +8,8 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   DB_PATH: 'scraper/data/listings.db'
+  COOKIES_FILE: 'scraper/data/facebook_mobile_cookies.json'
+  VERIFICATION_FLAG: 'scraper/data/VERIFICATION_NEEDED.txt'
 
 jobs:
   scrape:
@@ -33,12 +35,36 @@ jobs:
       - name: Install dependencies
         run: pip install -r scraper/requirements.txt
 
+      - name: Download saved cookies if exists
+        run: |
+          if [ -f "${{ env.COOKIES_FILE }}" ]; then
+            echo "Found existing cookies - will try to use them"
+          fi
+
       - name: Run scraper
         run: python -m scraper.main --db-path ${{ env.DB_PATH }}
         env:
           FACEBOOK_EMAIL: ${{ secrets.FACEBOOK_EMAIL }}
           FACEBOOK_PASSWORD: ${{ secrets.FACEBOOK_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+      - name: Check if verification is needed
+        id: check_verification
+        run: |
+          if [ -f "${{ env.VERIFICATION_FLAG }}" ]; then
+            echo "needs_verification=true" >> $GITHUB_OUTPUT
+            cat "${{ env.VERIFICATION_FLAG }}"
+          else
+            echo "needs_verification=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload cookies for manual verification
+        if: steps.check_verification.outputs.needs_verification == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: facebook-cookies-pending-verification
+          path: ${{ env.COOKIES_FILE }}
+          retention-days: 30
 
       - name: Check if database exists
         id: check_db
@@ -52,7 +78,7 @@ jobs:
           fi
 
       - name: Create or update release
-        if: steps.check_db.outputs.exists == 'true'
+        if: steps.check_db.outputs.exists == 'true' && steps.check_verification.outputs.needs_verification != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.0
@@ -68,8 +94,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log when no database created
-        if: steps.check_db.outputs.exists == 'false'
+      - name: Notify verification needed
+        if: steps.check_verification.outputs.needs_verification == 'true'
         run: |
-          echo "No database was created. Facebook login may have failed or no posts were scraped."
-          echo "Check the workflow logs for details."
+          echo ""
+          echo "=============================================="
+          echo "⚠️  VERIFICACIÓN MANUAL REQUERIDA"
+          echo "=============================================="
+          echo ""
+          echo "Facebook requiere verificación de la cuenta."
+          echo ""
+          echo "PASOS PARA RESOLVER:"
+          echo "1. Descarga el artifact 'facebook-cookies-pending-verification'"
+          echo "2. En tu navegador, inicia sesión en Facebook"
+          echo "3. Completa cualquier verificación que Facebook pida"
+          echo "4. Instala la extensión 'EditThisCookie' en Chrome"
+          echo "5. Ve a m.facebook.com y exporta las cookies"
+          echo "6. Reemplaza el archivo: scraper/data/facebook_mobile_cookies.json"
+          echo "7. Sube los cambios al repo"
+          echo "8. Vuelve a correr este workflow"
+          echo ""
+          echo "=============================================="
