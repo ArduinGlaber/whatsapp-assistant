@@ -159,21 +159,71 @@ class FacebookScraper:
             password_input.send_keys(password)
             time.sleep(0.5)
             
-            # Click login button
-            login_button = self.driver.find_element(By.NAME, 'login')
-            login_button.click()
+            # Click login button - try multiple selectors (Facebook changes these frequently)
+            login_selectors = [
+                (By.NAME, 'login'),
+                (By.CSS_SELECTOR, 'button[name="login"]'),
+                (By.CSS_SELECTOR, 'button[type="submit"]'),
+                (By.CSS_SELECTOR, 'button[data-testid="royal_login_button"]'),
+                (By.CSS_SELECTOR, 'input[type="submit"]'),
+                (By.XPATH, '//button[contains(., "Iniciar sesión") or contains(., "Log in") or contains(., "Entrar")]'),
+                (By.XPATH, '//button[@type="submit"]'),
+            ]
+            
+            login_button = None
+            for selector_type, selector_value in login_selectors:
+                try:
+                    login_button = self.driver.find_element(selector_type, selector_value)
+                    if login_button:
+                        break
+                except NoSuchElementException:
+                    continue
+            
+            if not login_button:
+                # Last resort: submit the form
+                logger.warning("Login button not found, trying form submit")
+                try:
+                    form = self.driver.find_element(By.CSS_SELECTOR, 'form[action*="login"]')
+                    form.submit()
+                except NoSuchElementException:
+                    logger.error("Could not find login form")
+                    return False
+            else:
+                login_button.click()
             
             # Wait for navigation
             time.sleep(5)
             
-            # Check if login was successful
-            if 'login' not in self.driver.current_url and 'checkpoint' not in self.driver.current_url:
+            # Check current URL for login state
+            current_url = self.driver.current_url
+            logger.info(f"URL after login attempt: {current_url}")
+            
+            # Check if we're still on login page or got redirected
+            if 'login' in current_url or 'checkpoint' in current_url or 'two-factor' in current_url:
+                # Check for error messages
+                error_selectors = [
+                    'div[role="alert"]',
+                    'div[data-testid="royal_login_error"]',
+                    'div[class*="error"]',
+                ]
+                error_msg = None
+                for selector in error_selectors:
+                    try:
+                        error_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        error_msg = error_elem.text
+                        break
+                    except NoSuchElementException:
+                        continue
+                
+                if error_msg:
+                    logger.error(f"❌ Login failed: {error_msg}")
+                else:
+                    logger.error("❌ Login failed - check credentials or 2FA")
+                return False
+            else:
                 logger.info("✅ Login successful")
                 self._save_session()
                 return True
-            else:
-                logger.error("❌ Login failed - check credentials or 2FA")
-                return False
                 
         except Exception as e:
             logger.error(f"❌ Login error: {e}")
