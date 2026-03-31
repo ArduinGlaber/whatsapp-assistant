@@ -1,7 +1,7 @@
 """
 Facebook Scraper Module
 ======================
-Handles browser automation and Facebook login using Selenium.
+Handles browser automation and Facebook login using Selenium/undetected-chromedriver.
 """
 
 import logging
@@ -11,9 +11,8 @@ import json
 from dataclasses import dataclass
 from typing import Optional
 
-from selenium import webdriver
+import undetected_chromedriver as uc
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -90,32 +89,36 @@ class FacebookScraper:
         return options
     
     def start(self):
-        """Start the browser."""
-        options = self._get_chrome_options()
-        
-        # Try different Chrome paths
+        """Start the browser using undetected-chromedriver."""
+        # Chromedriver paths
         chrome_paths = [
             '/usr/bin/chromium-browser',
             '/usr/bin/chromium',
-            '/usr/bin/google-chrome',
-            '/snap/bin/chromium',
         ]
         
-        for path in chrome_paths:
-            if os.path.exists(path):
-                service = Service(executable_path=path)
+        for chrome_path in chrome_paths:
+            if os.path.exists(chrome_path):
                 try:
-                    self.driver = webdriver.Chrome(service=service, options=options)
-                    logger.info(f"Browser started with {path}")
+                    options = uc.ChromeOptions()
+                    if self.headless:
+                        options.add_argument('--headless=new')
+                    options.add_argument('--no-sandbox')
+                    options.add_argument('--disable-dev-shm-usage')
+                    options.add_argument('--disable-gpu')
+                    options.add_argument('--window-size=1280,720')
+                    options.binary_location = chrome_path
+                    
+                    self.driver = uc.Chrome(options=options, version_main=None)
+                    logger.info(f"Browser started with {chrome_path}")
                     return
                 except Exception as e:
-                    logger.debug(f"Failed to start Chrome at {path}: {e}")
+                    logger.warning(f"Failed with {chrome_path}: {e}")
                     continue
         
-        # Fallback: try default
+        # Fallback: undetected-chromedriver auto-detect
         try:
-            self.driver = webdriver.Chrome(options=options)
-            logger.info("Browser started with default Chrome")
+            self.driver = uc.Chrome(version_main=None)
+            logger.info("Browser started with auto-detected Chrome")
         except Exception as e:
             raise RuntimeError(f"Could not start Chrome: {e}")
         

@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from scraper.facebook import FacebookScraper
+from scraper.facebook_simple import FacebookScraperSimple
 from scraper.parser import ListingParser
 from scraper.storage import Database
 
@@ -159,7 +159,7 @@ def main():
     
     # Initialize components
     db = Database(str(db_path))
-    scraper = FacebookScraper(headless=args.headless)
+    scraper = FacebookScraperSimple()
     parser = ListingParser()
     
     try:
