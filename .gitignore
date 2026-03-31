@@ -30,3 +30,4 @@ Thumbs.db
 *.log
 scraper/data/*.db
 scraper/data/*.sqlite*
+data/*.db
