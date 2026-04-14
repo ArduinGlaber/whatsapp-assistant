@@ -1,14 +1,13 @@
 # Telegram Marketplace Bot
 
-Bot de Telegram con scraping de Facebook para marketplace en Cuba.
+Este proyecto automatiza la búsqueda en Facebook Marketplace para alguien en Cuba.
 
-## Características
+Un bot de Telegram que:
+- Escrapea publicaciones de grupos de Facebook
+- Responde a comandos como `/busco iphone` con resultados
+- Almacena todo en SQLite para búsqueda offline
 
-- 🤖 **Scraper automático** de grupos de Facebook
-- 💬 **Bot de Telegram** que responde consultas
-- 📦 **Base de datos local** SQLite
-- 🔒 **Sin riesgo de ban** (API oficial de Telegram)
-- 📱 **Funciona offline** (ideal para Cuba)
+**Nota**: Este es el hermano "WC" (WiFi/Costo) del proyecto. Usa la PC para scrapear, consume más datos pero es más rápido. Para una alternativa que usa el celular como terminal, ver [Proyecto Manolo](https://github.com/ArduinGlaber/proyecto-manolo).
 
 ## Estructura
 
